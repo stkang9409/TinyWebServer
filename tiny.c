@@ -1,26 +1,27 @@
 #include "csapp.h"
 
-// doit은 무엇을 하는 함수일까요?
+// doit은 무엇을 하는 함수일까요? 트랜잭션 처리함수. 들어온 요청을 읽고 분석.
+// GETrequest가 들어오면 정적인지 동적인지 파악하여서 각각에 맞는 함수를 실행시킴. 오류시 에러표시도 포함.
 
 void doit(int fd);
 
 // rio -> ROBUST I/O
 void read_requesthdrs(rio_t *rp); // rio_t는 csapp.h에 정의되어있습니다 40줄쯤..
 
-// parse_uri는 무엇을 하는 함수일까요?
+// parse_uri는 무엇을 하는 함수일까요? 폴더안에서 특정 이름을 찾아서 파일이 동적인건지 정적인건지 알려줌.
 int parse_uri(char *uri, char *filename, char *cgiargs);
 
-// serve_static은 무엇을 하는 함수일까요?
+// serve_static은 무엇을 하는 함수일까요? 정적인 파일일때 파일을 클라이언트로 응답
 void serve_static(int fd, char *filename, int filesize);
 
-// get_filetype은 무엇을 하는 함수일까요?
+// get_filetype은 무엇을 하는 함수일까요? http,text,jpg,png,gif파일을 찾아서 serve_static에서 사용
 void get_filetype(char *filename, char *filetype);
 
-// serve_dynamic은 무엇을 하는 함수일까요?
+// serve_dynamic은 무엇을 하는 함수일까요? 동적인 파일을 받았을때 fork 함수로 자식프로세스를 만든후에 거기서 CGI프로그램 실행한다.
 void serve_dynamic(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
-// main에서 하는 일은?
 // main이 받는 변수 argc 와 argv는 무엇일까...
+// main에서 하는 일은? 무한 루프를 돌면서 대기하는 역할
 int main(int argc, char **argv)
 {
     int listenfd, connfd;                  // 여기서의 fd는 도대체 무슨 약자인걸까?
@@ -32,7 +33,7 @@ int main(int argc, char **argv)
 
     // argc는 하나의 커맨드인 것 같다.
     /* Check command-line args */
-    if (argc != 2)
+    if (argc != 2) //2개가 아니라고 되어있는데 2개의 의미를 모르겠다 2개가 안되면 3개도 안될거 같은데
     {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         exit(1);
@@ -161,7 +162,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
     if (!strstr(uri, "cgi-bin")) /* Static content */
     {
         strcpy(cgiargs, "");
-        strcpy(filename, ".");
+        strcpy(filename, "."); //if문이 끝나면 어떻게 되는건지 잘 모르겠음. 함수찾아서  봤는데도 감이 안옴.
         strcat(filename, uri);
         if (uri[strlen(uri) - 1] == '/')
             strcat(filename, "home.html");
