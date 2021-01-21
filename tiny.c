@@ -119,6 +119,7 @@ void doit(int fd)
     }
 }
 
+// 클라이언트에게 오류 보고하기
 void clienterror(int fd, char *cause, char *errnum, char *chortmsg, char *longmsg)
 {
     char buf[MAXLINE], body[MAXBUF];
@@ -143,14 +144,43 @@ void clienterror(int fd, char *cause, char *errnum, char *chortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
+// 요청헤더 읽기
 void read_requesthdrs(rio_t *rp)
 {
     char buf[MAXLINE];
 
-    Rio_readlineb(rp, buf, MAXLINE);
-    while (strcmp(buf, "\r\n"))
+    // /* 한 줄씩 읽어들인다. */
+    // ssize_t rio_readlineb(rio_t * rp, void *usrbuf, size_t maxlen)
+    // {
+    //     int n, rc;
+    //     char c, *bufp = usrbuf;
+
+    //     for (n = 1; n < maxlen; ++n)
+    //     {
+    //         if ((rc = rio_read(rp, &c, 1)) == 1)
+    //         { /* rio_read()로 1 byte씩 읽는다. */
+    //             *bufp++ = c;
+    //             if (c == '\n') /* newline인 경우, 한 줄을 읽었기 때문에 종료 */
+    //                 break;
+    //         }
+    //         else if (rc == 0)
+    //         {
+    //             if (n == 1)
+    //                 return 0; /* EOF -> 종료, 읽을 데이터가 없는 경우 */
+    //             else
+    //                 break; /* EOF */
+    //         }
+    //         else
+    //             return -1;
+    //     }
+    //     *bufp = 0;
+    //     return n;
+    // }
+
+    Rio_readlineb(rp, buf, MAXLINE); // rp 한줄 buf에 저장, 다 읽고 나면 rp는 다음 줄의 처음을 가리키는 듯.
+    while (strcmp(buf, "\r\n"))      // buf가 요청 헤더의 마지막이 되면 0 반환하고 끝.
     {
-        Rio_readlineb(rp, buf, MAXLINE);
+        Rio_readlineb(rp, buf, MAXLINE); // 계속 한줄씩 읽고 아무것도 안한다.
         printf("%s", buf);
     }
     return;
@@ -171,18 +201,24 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
     else /* Dynamic content */
     {
         ptr = index(uri, '?');
+        //CGI 인자 추출
         if (ptr)
         {
+            //물음표 뒤에 인자 다 같다 붙인다.
             strcpy(cgiargs, ptr + 1);
+            // 포인터는 문자열 마지막으로 바꾼다.
             *ptr = '\0';
         }
         else
             strcpy(cgiargs, "");
+
+        // 나머지 부분 상대 URI로 바꿈
         strcpy(filename, ".");
         strcat(filename, uri);
         return 0;
     }
 }
+
 void serve_static(int fd, char *filename, int filesize)
 {
     int srcfd;
@@ -204,6 +240,7 @@ void serve_static(int fd, char *filename, int filesize)
     Rio_writen(fd, srcp, filesize);
     Munmap(srcp, filesize);
 }
+
 /* get_filetype - Derive file type from filename */
 void get_filetype(char *filename, char *filetype)
 {
@@ -218,6 +255,7 @@ void get_filetype(char *filename, char *filetype)
     else
         strcpy(filetype, "text/plain");
 }
+
 void serve_dynamic(int fd, char *filename, char *cgiargs)
 {
     char buf[MAXLINE], *emptylist[] = {NULL};
