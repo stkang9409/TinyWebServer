@@ -1,19 +1,35 @@
 #include "csapp.h"
 
+// doit은 무엇을 하는 함수일까요?
+
 void doit(int fd);
-void read_requesthdrs(rio_t *rp); // rio_t는 어디서 온 친구일까..
+
+// rio -> ROBUST I/O
+void read_requesthdrs(rio_t *rp); // rio_t는 csapp.h에 정의되어있습니다 40줄쯤..
+
+// parse_uri는 무엇을 하는 함수일까요?
 int parse_uri(char *uri, char *filename, char *cgiargs);
+
+// serve_static은 무엇을 하는 함수일까요?
 void serve_static(int fd, char *filename, int filesize);
+
+// get_filetype은 무엇을 하는 함수일까요?
 void get_filetype(char *filename, char *filetype);
+
+// serve_dynamic은 무엇을 하는 함수일까요?
 void serve_dynamic(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
+// main에서 하는 일은?
 int main(int argc, char **argv)
 {
-    int listenfd, connfd;
-    char hostname[MAXLINE], port[MAXLINE];
-    socklen_t clientlen;
-    struct sockaddr_storage clientaddr;
+    int listenfd, connfd;                  // 여기서의 fd는 도대체 무슨 약자인걸까?
+    char hostname[MAXLINE], port[MAXLINE]; // hostname:port -> localhost:4000
+    // socklen_t 는 소켓 관련 매개 변수에 사용되는 것으로 길이 및 크기 값에 대한 정의를 내려준다
+    socklen_t clientlen;                //client가 몇개나 있는가에 대한 것
+    struct sockaddr_storage clientaddr; //SOCKADDR_STORAGE  구조체는 소켓 주소 정보를 저장한다.
+    // SOCKADDR_STORAGE 구조체는  sockaddr 구조체가 쓰이는 곳에 사용할 수 있다.
 
+    // argc는 하나의 커맨드인 것 같다.
     /* Check command-line args */
     if (argc != 2)
     {
