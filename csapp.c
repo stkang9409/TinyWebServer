@@ -1021,34 +1021,57 @@ int open_clientfd(char *hostname, char *port)
 /* $begin open_listenfd */
 int open_listenfd(char *port)
 {
+    //addrinfo 구조체는 네트워크 주소정보(인터넷 주소)와 호스트이름을 표현하는데 사용되며,
+    // 이 정보는 bind( ), connect( )호출 시 입력 파라미터에 사용될 수 있다.
+    // struct addrinfo
+    // {
+    //     int ai_flags;             /* 추가적인 옵션을 정의 할 때 사용함. 여러 flag를 bitwise OR-ing 하여 넣는다 */
+    //     int ai_family;            /* address family를 나타냄. AF_INET, AF_INET6, AF_UNSPEC */
+    //     int ai_socktype;          /* socket type을 나타냄. SOCK_SREAM, SOCK_DGRAM */
+    //     int ai_protocol;          /* IPv4와 IPv6에 대한 IPPROTO_xxx와 같은 값을 가짐. */
+    //     socklen_t ai_addrlen;     /* socket 주소인 ai_addr의 길이를 나타냄 */
+    //     char *ai_canonname;       /* 호스트의 canonical name을 나타냄 */
+    //     struct sockaddr *ai_addr; /* socket 주소를 나타내는 구조체 포인터 */
+    //     struct addrinfo *ai_next; /* 주소정보 구조체 addrinfo는 linked list이다. 다음 데이터의 포인터 */
+    // };
+
     struct addrinfo hints, *listp, *p;
     int listenfd, rc, optval = 1;
 
     /* Get a list of potential server addresses */
-    memset(&hints, 0, sizeof(struct addrinfo));
+    memset(&hints, 0, sizeof(struct addrinfo));  //힌트에 0을 채운다.
     hints.ai_socktype = SOCK_STREAM;             /* Accept connections */
     hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG; /* ... on any IP address */
     hints.ai_flags |= AI_NUMERICSERV;            /* ... using port number */
+
+    // getaddrinfo -> 인자로 들어가는 포인터에 뭔가 값을 넣어준다.
     if ((rc = getaddrinfo(NULL, port, &hints, &listp)) != 0)
     {
         fprintf(stderr, "getaddrinfo failed (port %s): %s\n", port, gai_strerror(rc));
         return -2;
     }
+    // 그렇게 하고나면, 포트 힌트 리스트포인터에 뭔가 들어간다.
 
+    //리스트포인터에서 시작하여 모든 주소 정보를 순회하며 뭔가 한다. 끝에 가면 0이 있는듯.
     /* Walk the list for one that we can bind to */
     for (p = listp; p; p = p->ai_next)
     {
+        // 듣기 식별자 만들기 & 못 만들면 그냥 넘어감.
         /* Create a socket descriptor */
         if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
             continue; /* Socket failed, try the next */
 
+        // 뭔지 아직 모름~~~~
         /* Eliminates "Address already in use" error from bind */
         setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, //line:netp:csapp:setsockopt
                    (const void *)&optval, sizeof(int));
 
+        // 소켓 만들고나면 바인딩, 주소랑 그런것 뭔가 밀어넣기 성공하면 그만하기.
         /* Bind the descriptor to the address */
         if (bind(listenfd, p->ai_addr, p->ai_addrlen) == 0)
             break; /* Success */
+
+        // 바인딩 실패시 열어놓은 소켓 닫으려고 하는데, 닫기도 안되면 에러.
         if (close(listenfd) < 0)
         { /* Bind failed, try the next */
             fprintf(stderr, "open_listenfd close failed: %s\n", strerror(errno));
@@ -1056,11 +1079,14 @@ int open_listenfd(char *port)
         }
     }
 
+    // 내장함수임..
+    // 유효한 소켓 주소를 찾으면 메모리를 위해 리스트 포인터 메모리 해제해준다
     /* Clean up */
     freeaddrinfo(listp);
     if (!p) /* No address worked */
         return -1;
 
+    //듣기 식별자가 듣게 만들고 듣기 식별자 반환, 실패하면 듣기 식별자 닫아버리고 음수 반환.
     /* Make it a listening socket ready to accept connection requests */
     if (listen(listenfd, LISTENQ) < 0)
     {
