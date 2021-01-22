@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     /* Check command-line args */
     if (argc != 2) //2개가 아니라고 되어있는데 2개의 의미를 모르겠다 2개가 안되면 3개도 안될거 같은데
     {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        fprintf(stderr, "usage: %s <port>\n", argv[0]); //다른 클라이언트가 사용중이다!!
         exit(1);
     }
     // listenfd -> 듣기 소켓 오픈~
@@ -212,24 +212,30 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
         else
             strcpy(cgiargs, "");
 
-        // 나머지 부분 상대 URI로 바꿈
+        // 나머지 부분 상대 URI로 바꿈, 나중에 이 서버의 uri가 뭔지 확실히 알아보자
         strcpy(filename, ".");
         strcat(filename, uri);
         return 0;
     }
 }
 
+// fd 응답받는 소켓(연결식별자), 파일 이름, 파일 사이즈
 void serve_static(int fd, char *filename, int filesize)
 {
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXBUF];
     /* Send response headers to client */
+    // 파일 접미어 검사해서 파일 타입 결정
     get_filetype(filename, filetype);
+
+    //클라이언트에게 응답 보내기
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sConnection: close\r\n", buf);
     sprintf(buf, "%Content-length: %d\r\n", buf, filesize);
     sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
+
+    //
     Rio_writen(fd, buf, strlen(buf));
     printf("Response header:\n");
     printf("%s", buf);

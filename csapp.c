@@ -1058,10 +1058,37 @@ int open_listenfd(char *port)
     {
         // 듣기 식별자 만들기 & 못 만들면 그냥 넘어감.
         /* Create a socket descriptor */
+
+        // socket은 system call 입니다.
+
+        //     반환 : 해당 소켓을 가리키는 소켓
+        //            디스크립터(socket descriptor) 를 반환합니다.파일 디스크립터와 비슷합니다.
+        //     -1 이 반환되면 소켓 생성 실패,
+        //     0 이상의 값이 나오면 socket descriptor 반환.
+        //         **소켓을 통해 통신하는 방식은 일종에 파일에 쓰고 읽는 방식이라 소켓 디스크립터도 파일 디스크립터와 같다고 보면 됩니다.
+
+        //     domain : 어떤 영역에서 통신할 것인지에 대한 영역을 지정해 줍니다.프로토콜 family를 지정해 주는 것 입니다.
+        //                  ->AF_UNIX(프로토콜 내부에서),
+        //     AF_INET(IPv4), AF_INET6(IPv6)
+
+        //                        type : 어떤 타입의 프로토콜을 사용할 것인지에 대해 설정 하는 것 입니다.->SOCK_STREAM(TCP),
+        //     SOCK_DGRAM(UDP), SOCK_RAW(사용자 정의)
+
+        //                          protocol : 어떤 프로토콜의 값을 결정하는 것 입니다.->0을 쓰셔도 되고,
+        //     IPPROTO_TCP(TCP 일때), IPPROTO_UDP(UDP 일때) if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) continue; /* Socket failed, try the next */
         if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0)
             continue; /* Socket failed, try the next */
 
-        // 뭔지 아직 모름~~~~
+        //   SO_REUSEADDR 옵션을 설정하면 커널이 소켓을 사용하는 중에도 계속해서 사용할 수 있다.
+        //   이 옵션은 서버프로그램이 종료된 후에도 커널이 소켓의 포트를 아직 점유 중인 경우에 서버 프로그램을 다시 구동해야 할 때 매우 유용하다.
+        //   예를 들어, 연결 종료 단계에서 설명한 바와 같이 연결 종료를 먼저 시작한 쪽은 상대방으로부터 FIN 패킷을 받고,
+        //   FIN_ACK 패킷을 전송한 후 일정 시간 동안 소켓을 종료하지 않고 커널이 해당 소켓을 점유한다.
+        //   즉, 먼저 종료를 시작하는 시스템은 응용 프로그램이 종료되더라도 소켓은 커널에서 일정 시간 동안 점유 중인 상태로 있게 되는 것이다.
+        //   이런 경우에 응용 프로그램을 재실행하면 bind 함수를 호출할 때 아직 점유 중인 포트를 연결하려는 시도 때문에 오류가 발생한다. 일정 시간이 지나야 연결이 가능하다.
+        //   게임 서버처럼 사용자가 많은 서버에서 버전 업그레이드 때문에 일정 시간 동안 서버를 중단했다가 다시 구동해야 하는 경우에도 이런 문제가 발생한다.
+        //   일정 시간 서비스를 할 수 없는 것이다. 이때 SO_REUSEADDR 옵션을 설정하면 커널이 소켓의 포트를 점유 중인 상태에서도 서버 프로그램을 다시 구동할 수 있다.
+        //   이 밖에도 두 개 이상의 IP 주소를 갖는 호스트에서 IP 주소별로 서버를 운용할 경우에도 이 옵션을 사용하면 사용 중인 포트에 대해서도 소켓을 성공적으로 주소에 연결(bind)할 수 있다.
+        //   멀티캐스팅 응용 프로그램이 동일한 포트를 사용할 때도 이 옵션을 활용한다.
         /* Eliminates "Address already in use" error from bind */
         setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, //line:netp:csapp:setsockopt
                    (const void *)&optval, sizeof(int));
