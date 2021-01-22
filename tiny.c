@@ -17,7 +17,7 @@ void serve_static(int fd, char *filename, int filesize);
 // get_filetype은 무엇을 하는 함수일까요? http,text,jpg,png,gif파일을 찾아서 serve_static에서 사용
 void get_filetype(char *filename, char *filetype);
 
-// serve_dynamic은 무엇을 하는 함수일까요? 동적인 파일을 받았을때 fork 함수로 자식프로세스를 만든후에 거기서 CGI프로그램 실행한다.
+// serve_dynamic은 무엇을 하는 함수일까요? 동적인 파일을 받았을때 fork 함수로 자식프로세스를 만든후에 거기서 CGI프로그램 실행한다. s
 void serve_dynamic(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 // main이 받는 변수 argc 와 argv는 무엇일까...
