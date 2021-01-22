@@ -46,32 +46,9 @@ int main(int argc, char **argv)
     {
         clientlen = sizeof(clientaddr);
         // 연결 요청 접수
-<<<<<<< HEAD
-        // 클라이언트 들어오면 clientaddr에 바로 저장
-        // 연결 식별자 만들어버리기
-
-        // int accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-
-        // accept() 함수는 연결지향 소켓 타입 (SOCK_STREAM, SOCK_SEQPACKET, SOCK_RDM)에 사용된다.
-        // 이것은 아직 처리되지 않은 연결들이 대기하고 있는 큐에서 제일 처음 연결된 연결을 가져와서
-        // 새로운 연결된 소켓을 만든다. 그리고 소켓을 가르키는 파일 지정자를 할당하고 이것을 리턴한다.
-
-        // 인자 s 는 socket() 로 만들어진 end-point(듣기 소켓)을 위한 파일지정자이다.
-
-        // 인자 addr 는 sockaddr 구조체에 대한 포인터이다. 연결이 성공되면 이 구조체를 채워서 되돌려 주게 되고,
-        //  우리는 이구조체의 정보를 이용해서 연결된 클라이언트의 인터넷 정보를 알아낼수 있다.
-
-        // addrlen 인자는 addr의 크기 이다.
-
-        // 만약 미결인 연결이 큐에 존재하지 않고, 소켓이 비봉쇄가 아니라면 accept 는 연결이 존재할때까지
-        // 해당영역에서 봉쇄된다. 비봉쇄 소켓일경우에는 errno 로 EAGAIN 을 설정하고 바로 리턴한다.
-=======
         // 연결 요청 큐에 아무것도 없을 경우 기본적으로 연결이 생길때까지 호출자를 막아둔다.
         // 소켓이 non-blocking 모드일 경우엔 에러를 띄운다.
->>>>>>> tom
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-
-        // 클라이언트 정보 가지고 오기
         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
         printf("Accepted connection from (%s, %s)\n", hostname, port);
 
