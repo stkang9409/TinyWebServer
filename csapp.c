@@ -818,16 +818,16 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
     int cnt;
 
-    while (rp->rio_cnt <= 0)
-    { /* Refill if buf is empty */
+    while (rp->rio_cnt <= 0) // read의 반환값이 0이면 파일이 끝났다는 말.
+    {                        /* Refill if buf is empty */
         rp->rio_cnt = read(rp->rio_fd, rp->rio_buf,
-                           sizeof(rp->rio_buf));
-        if (rp->rio_cnt < 0)
+                           sizeof(rp->rio_buf)); //글자 수 확인.
+        if (rp->rio_cnt < 0)                     // 에러
         {
             if (errno != EINTR) /* Interrupted by sig handler return */
                 return -1;
         }
-        else if (rp->rio_cnt == 0) /* EOF */
+        else if (rp->rio_cnt == 0) /* EOF */ //빈파일
             return 0;
         else
             rp->rio_bufptr = rp->rio_buf; /* Reset buffer ptr */

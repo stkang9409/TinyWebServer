@@ -18,34 +18,36 @@ void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 
 // serve_dynamic은 무엇을 하는 함수일까요? 동적인 파일을 받았을때 fork 함수로 자식프로세스를 만든후에 거기서 CGI프로그램 실행한다. s
-void serve_dynamic(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+void serve_dynamic(int fd, char *filename, char *cgiargs);
 
-// main이 받는 변수 argc 와 argv는 무엇일까...
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+
+// main이 받는 변수 argc 와 argv는 무엇일까 -> 배열 길이, filename, port
 // main에서 하는 일은? 무한 루프를 돌면서 대기하는 역할
 int main(int argc, char **argv)
 {
-    int listenfd, connfd;                  // 여기서의 fd는 도대체 무슨 약자인걸까?
+    int listenfd, connfd;                  // 여기서의 fd는 도대체 무슨 약자인걸까? -> file description
     char hostname[MAXLINE], port[MAXLINE]; // hostname:port -> localhost:4000
     // socklen_t 는 소켓 관련 매개 변수에 사용되는 것으로 길이 및 크기 값에 대한 정의를 내려준다
     socklen_t clientlen;                //client가 몇개나 있는가에 대한 것
     struct sockaddr_storage clientaddr; //SOCKADDR_STORAGE  구조체는 소켓 주소 정보를 저장한다.
     // SOCKADDR_STORAGE 구조체는  sockaddr 구조체가 쓰이는 곳에 사용할 수 있다.
 
-    // argc는 하나의 커맨드인 것 같다.
     /* Check command-line args */
-    if (argc != 2) //2개가 아니라고 되어있는데 2개의 의미를 모르겠다 2개가 안되면 3개도 안될거 같은데
+    if (argc != 2) // 프로그램 실행 시 port를 안썼으면,
     {
         fprintf(stderr, "usage: %s <port>\n", argv[0]); //다른 클라이언트가 사용중이다!!
         exit(1);
     }
-    // listenfd -> 듣기 소켓 오픈~
-    // argv에 port들 들어있는듯~
+    // listenfd -> 이 포트에 대한 듣기 소켓 오픈~
     listenfd = Open_listenfd(argv[1]);
     // 무한 서버루프 실행
     while (1)
     {
         clientlen = sizeof(clientaddr);
         // 연결 요청 접수
+        // 연결 요청 큐에 아무것도 없을 경우 기본적으로 연결이 생길때까지 호출자를 막아둔다.
+        // 소켓이 non-blocking 모드일 경우엔 에러를 띄운다.
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
         printf("Accepted connection from (%s, %s)\n", hostname, port);
@@ -69,8 +71,8 @@ void doit(int fd)
 
     // 요청 라인 읽고 분석하기...
     /* Read request line and headers */
-    Rio_readinitb(&rio, fd);
-    Rio_readlineb(&rio, buf, MAXLINE);
+    Rio_readinitb(&rio, fd);           //rio 구조체 초기화..
+    Rio_readlineb(&rio, buf, MAXLINE); //buf에 읽은 것 담겨있음.
     printf("Request headers: \n");
     printf("%s", buf);
     sscanf(buf, "%s %s %S", method, uri, version);
@@ -101,7 +103,7 @@ void doit(int fd)
         /* Serve static content */
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode))
         {
-            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file")
+            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
         }
         // 그렇다면 클라이언트에게 파일 제공
         serve_static(fd, filename, sbuf.st_size);
@@ -112,7 +114,8 @@ void doit(int fd)
         /* Serve dynamic content */
         if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode))
         {
-            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program") return;
+            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
+            return;
         }
         //그렇다면 클라이언트에게 파일 제공.
         serve_dynamic(fd, filename, cgiargs);
@@ -120,7 +123,7 @@ void doit(int fd)
 }
 
 // 클라이언트에게 오류 보고하기
-void clienterror(int fd, char *cause, char *errnum, char *chortmsg, char *longmsg)
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg)
 {
     char buf[MAXLINE], body[MAXBUF];
 
@@ -232,7 +235,7 @@ void serve_static(int fd, char *filename, int filesize)
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sConnection: close\r\n", buf);
-    sprintf(buf, "%Content-length: %d\r\n", buf, filesize);
+    sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
     sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
 
     //

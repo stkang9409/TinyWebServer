@@ -6,6 +6,7 @@
 #define __CSAPP_H__
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include <math.h>
@@ -15,6 +16,13 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <string.h>
 
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */
