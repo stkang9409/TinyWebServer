@@ -22,7 +22,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
-void echo(int fd, char *buf, int len);
+void echo(int fd);
 
 // main이 받는 변수 argc 와 argv는 무엇일까 -> 배열 길이, filename, port
 // main에서 하는 일은? 무한 루프를 돌면서 대기하는 역할
@@ -57,15 +57,26 @@ int main(int argc, char **argv)
 
         // 트랜잭션 수행
         doit(connfd);
-
+        //echo(connfd);
         // 연결 끝 닫기
         Close(connfd);
     }
 }
 
-void echo(int fd, char *buf, int len)
+void echo(int fd)
 {
-    Rio_writen(fd, buf, len);
+    char buf[MAXLINE];
+    rio_t rio;
+    rio_readinitb(&rio, fd);
+    printf("\n Request headers: \n");
+
+    Rio_readlineb(&rio, buf, MAXLINE); // MAXLINE 까지 읽기
+    Rio_writen(fd, buf, strlen(buf));
+    while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
+    {
+        Rio_readlineb(&rio, buf, MAXLINE);
+        Rio_writen(fd, buf, strlen(buf));
+    }
 }
 
 void doit(int fd)
@@ -79,13 +90,10 @@ void doit(int fd)
 
     // 요청 라인 읽고 분석하기...
     /* Read request line and headers */
-    strcpy(buf, "\n\n Request headers: \n");
-    echo(fd, buf, strlen(buf));
     Rio_readinitb(&rio, fd);           //rio 구조체 초기화..
     Rio_readlineb(&rio, buf, MAXLINE); //buf에 읽은 것 담겨있음.
     printf("\n Request headers: \n");
     printf("%s", buf);
-    echo(fd, buf, strlen(buf));
     sscanf(buf, "%s %s %s", method, uri, version);
 
     // 메소드가 get이 아니면 에러 띄우고 끝내기
@@ -163,18 +171,14 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void read_requesthdrs(rio_t *rp, int fd)
 {
     char buf[MAXLINE];
-    char echo_buf[MAXLINE];
 
     Rio_readlineb(rp, buf, MAXLINE); // MAXLINE 까지 읽기
     printf("%s", buf);
-    strcat(echo_buf, buf);
     while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
     {
         Rio_readlineb(rp, buf, MAXLINE);
-        strcat(echo_buf, buf);
         printf("%s", buf);
     }
-    echo(fd, echo_buf, strlen(echo_buf));
     return;
 }
 
@@ -221,9 +225,6 @@ void serve_static(int fd, char *filename, int filesize)
     // 파일 접미어 검사해서 파일 이름에서 타입 가지고 오기
     get_filetype(filename, filetype);
     printf("Response header:\n");
-
-    strcpy(buf, "Response headers: \n");
-    echo(fd, buf, strlen(buf));
 
     //클라이언트에게 응답 보내기
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
