@@ -6,7 +6,7 @@
 void doit(int fd);
 
 // rio -> ROBUST I/O
-void read_requesthdrs(rio_t *rp); // rio_t는 csapp.h에 정의되어있습니다 40줄쯤..
+void read_requesthdrs(rio_t *rp, int fd); // rio_t는 csapp.h에 정의되어있습니다 40줄쯤..
 
 // parse_uri는 무엇을 하는 함수일까요? 폴더안에서 특정 이름을 찾아서 파일이 동적인건지 정적인건지 알려줌.
 int parse_uri(char *uri, char *filename, char *cgiargs);
@@ -22,6 +22,8 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
+void echo(int fd, char *buf, int len);
+
 // main이 받는 변수 argc 와 argv는 무엇일까 -> 배열 길이, filename, port
 // main에서 하는 일은? 무한 루프를 돌면서 대기하는 역할
 int main(int argc, char **argv)
@@ -29,14 +31,15 @@ int main(int argc, char **argv)
     int listenfd, connfd;                  // 여기서의 fd는 도대체 무슨 약자인걸까? -> file description
     char hostname[MAXLINE], port[MAXLINE]; // hostname:port -> localhost:4000
     // socklen_t 는 소켓 관련 매개 변수에 사용되는 것으로 길이 및 크기 값에 대한 정의를 내려준다
-    socklen_t clientlen;                //client가 몇개나 있는가에 대한 것
-    struct sockaddr_storage clientaddr; //SOCKADDR_STORAGE  구조체는 소켓 주소 정보를 저장한다.
+    socklen_t clientlen;                //sizeof address
+    struct sockaddr_storage clientaddr; //어떤 타입의 소켓 주소가 오든 감당할 수 있을 만큼 충분히 큰 구조체, 패밀리밖에 안들어감, 나머지 멤버는 다 패딩
+    // 패밀리밖에 안들어가는데 여기서 어떻게 호스트네임이랑 포트를 가지고 오는 것일까...? -> 비공개라는 말이 있는데, 정보가 담겨있기는 한가봄..
     // SOCKADDR_STORAGE 구조체는  sockaddr 구조체가 쓰이는 곳에 사용할 수 있다.
 
     /* Check command-line args */
     if (argc != 2) // 프로그램 실행 시 port를 안썼으면,
     {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]); //다른 클라이언트가 사용중이다!!
+        fprintf(stderr, "usage: %s <port>\n", argv[0]); //argv[0]의 사용법은 파일명 <port> 이다 라고 사용자에게 알려주는것
         exit(1);
     }
     // listenfd -> 이 포트에 대한 듣기 소켓 오픈~
@@ -60,6 +63,11 @@ int main(int argc, char **argv)
     }
 }
 
+void echo(int fd, char *buf, int len)
+{
+    Rio_writen(fd, buf, len);
+}
+
 void doit(int fd)
 {
     int is_static;
@@ -71,11 +79,14 @@ void doit(int fd)
 
     // 요청 라인 읽고 분석하기...
     /* Read request line and headers */
+    strcpy(buf, "\n\n Request headers: \n");
+    echo(fd, buf, strlen(buf));
     Rio_readinitb(&rio, fd);           //rio 구조체 초기화..
     Rio_readlineb(&rio, buf, MAXLINE); //buf에 읽은 것 담겨있음.
-    printf("Request headers: \n");
+    printf("\n Request headers: \n");
     printf("%s", buf);
-    sscanf(buf, "%s %s %S", method, uri, version);
+    echo(fd, buf, strlen(buf));
+    sscanf(buf, "%s %s %s", method, uri, version);
 
     // 메소드가 get이 아니면 에러 띄우고 끝내기
     if (strcasecmp(method, "GET"))
@@ -84,7 +95,8 @@ void doit(int fd)
         return;
     }
     // get인 경우 다른 요청 헤더 무시.
-    read_requesthdrs(&rio);
+
+    read_requesthdrs(&rio, fd);
 
     // URI 분석하기
     // 파일이 없는 경우 에러 띄우기
@@ -148,16 +160,21 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 }
 
 // 요청헤더 읽기
-void read_requesthdrs(rio_t *rp)
+void read_requesthdrs(rio_t *rp, int fd)
 {
     char buf[MAXLINE];
+    char echo_buf[MAXLINE];
 
     Rio_readlineb(rp, buf, MAXLINE); // MAXLINE 까지 읽기
-    while (strcmp(buf, "\r\n"))      // 끝줄 나올때까지 계속 읽기
+    printf("%s", buf);
+    strcat(echo_buf, buf);
+    while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
     {
         Rio_readlineb(rp, buf, MAXLINE);
+        strcat(echo_buf, buf);
         printf("%s", buf);
     }
+    echo(fd, echo_buf, strlen(echo_buf));
     return;
 }
 
@@ -203,6 +220,10 @@ void serve_static(int fd, char *filename, int filesize)
     /* Send response headers to client */
     // 파일 접미어 검사해서 파일 이름에서 타입 가지고 오기
     get_filetype(filename, filetype);
+    printf("Response header:\n");
+
+    strcpy(buf, "Response headers: \n");
+    echo(fd, buf, strlen(buf));
 
     //클라이언트에게 응답 보내기
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
@@ -213,7 +234,6 @@ void serve_static(int fd, char *filename, int filesize)
     Rio_writen(fd, buf, strlen(buf));
 
     // 서버에 출력
-    printf("Response header:\n");
     printf("%s", buf);
 
     // 읽을 수 있는 파일로 열기
