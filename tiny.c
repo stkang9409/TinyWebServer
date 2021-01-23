@@ -152,38 +152,10 @@ void read_requesthdrs(rio_t *rp)
 {
     char buf[MAXLINE];
 
-    // /* 한 줄씩 읽어들인다. */
-    // ssize_t rio_readlineb(rio_t * rp, void *usrbuf, size_t maxlen)
-    // {
-    //     int n, rc;
-    //     char c, *bufp = usrbuf;
-
-    //     for (n = 1; n < maxlen; ++n)
-    //     {
-    //         if ((rc = rio_read(rp, &c, 1)) == 1)
-    //         { /* rio_read()로 1 byte씩 읽는다. */
-    //             *bufp++ = c;
-    //             if (c == '\n') /* newline인 경우, 한 줄을 읽었기 때문에 종료 */
-    //                 break;
-    //         }
-    //         else if (rc == 0)
-    //         {
-    //             if (n == 1)
-    //                 return 0; /* EOF -> 종료, 읽을 데이터가 없는 경우 */
-    //             else
-    //                 break; /* EOF */
-    //         }
-    //         else
-    //             return -1;
-    //     }
-    //     *bufp = 0;
-    //     return n;
-    // }
-
-    Rio_readlineb(rp, buf, MAXLINE); // rp 한줄 buf에 저장, 다 읽고 나면 rp는 다음 줄의 처음을 가리키는 듯.
-    while (strcmp(buf, "\r\n"))      // buf가 요청 헤더의 마지막이 되면 0 반환하고 끝.
+    Rio_readlineb(rp, buf, MAXLINE); // MAXLINE 까지 읽기
+    while (strcmp(buf, "\r\n"))      // 끝줄 나올때까지 계속 읽기
     {
-        Rio_readlineb(rp, buf, MAXLINE); // 계속 한줄씩 읽고 아무것도 안한다.
+        Rio_readlineb(rp, buf, MAXLINE);
         printf("%s", buf);
     }
     return;
@@ -192,10 +164,11 @@ void read_requesthdrs(rio_t *rp)
 int parse_uri(char *uri, char *filename, char *cgiargs)
 {
     char *ptr;
+    //cgi-bin가 없다면
     if (!strstr(uri, "cgi-bin")) /* Static content */
     {
         strcpy(cgiargs, "");
-        strcpy(filename, "."); //if문이 끝나면 어떻게 되는건지 잘 모르겠음. 함수찾아서  봤는데도 감이 안옴.
+        strcpy(filename, "."); // ./uri/home.html 가 된다.
         strcat(filename, uri);
         if (uri[strlen(uri) - 1] == '/')
             strcat(filename, "home.html");
@@ -210,14 +183,14 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
             //물음표 뒤에 인자 다 같다 붙인다.
             strcpy(cgiargs, ptr + 1);
             // 포인터는 문자열 마지막으로 바꾼다.
-            *ptr = '\0';
+            *ptr = '\0'; //uri 물음표 뒤 다 없애기
         }
         else
-            strcpy(cgiargs, "");
+            strcpy(cgiargs, ""); // 물음표 뒤 녀석들 전부 넣어주기
 
         // 나머지 부분 상대 URI로 바꿈, 나중에 이 서버의 uri가 뭔지 확실히 알아보자
         strcpy(filename, ".");
-        strcat(filename, uri);
+        strcat(filename, uri); // ./uri 가 된다.
         return 0;
     }
 }
@@ -228,7 +201,7 @@ void serve_static(int fd, char *filename, int filesize)
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXBUF];
     /* Send response headers to client */
-    // 파일 접미어 검사해서 파일 타입 결정
+    // 파일 접미어 검사해서 파일 이름에서 타입 가지고 오기
     get_filetype(filename, filetype);
 
     //클라이언트에게 응답 보내기
@@ -237,16 +210,22 @@ void serve_static(int fd, char *filename, int filesize)
     sprintf(buf, "%sConnection: close\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
     sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
-
-    //
     Rio_writen(fd, buf, strlen(buf));
+
+    // 서버에 출력
     printf("Response header:\n");
     printf("%s", buf);
-    /* Send response body to client */
+
+    // 읽을 수 있는 파일로 열기
     srcfd = Open(filename, O_RDONLY, 0);
+    //PROT_READ -> 페이지는 읽을 수만 있다.
+    // 파일을 어떤 메모리 공간에 대응시키고 첫주소를 리턴
     srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
     Close(srcfd);
     Rio_writen(fd, srcp, filesize);
+    //대응시킨 녀석을 풀어준다. 유효하지 않은 메모리로 만듦
+    // void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset);
+    // int munmap(void *start, size_t length);
     Munmap(srcp, filesize);
 }
 
@@ -273,12 +252,18 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "Server: Tiny Web Server\r\n");
     Rio_writen(fd, buf, strlen(buf));
-    if (Fork() == 0) // Child
+    if (Fork() == 0) // 자식 생성 이 아래 내용은 각각 실행 자식만 조건 문 안 실행
     /* Real server would set all CGI vars here */
     {
+        // 1이면 원래 있던거 지우고 다시 넣기
         setenv("QUERY_STRING", cgiargs, 1);
-        Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
+        // 파일 복사하기
+        // 표준 출력이 fd에 저장되게 만드는 듯
+        // 원래는 STDOUT_FILENO -> 1 임. 표준 파일 식별자.
+        Dup2(fd, STDOUT_FILENO); /* Redirect stdout to client */
+        // 파일 네임의 실행 코드를 가지고 와서 실행,
+        // 즉 자식 프로세스에는 기존 기능이 전부 없어지고 파일이 실행되는 것임.
         Execve(filename, emptylist, environ); /* Run CGI program */
     }
-    Wait(NULL); /* Parent waits for and reaps child */
+    Wait(NULL); // 자식 끝날때까지 기다림
 }
