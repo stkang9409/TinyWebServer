@@ -59,23 +59,23 @@ int main(int argc, char **argv)
         doit(connfd);
         //echo(connfd);
         // 연결 끝 닫기
+        printf("endoffile\n");
         Close(connfd);
     }
 }
 
-void echo(int fd)
+void echo(int connfd)
 {
+    size_t n;
     char buf[MAXLINE];
     rio_t rio;
-    rio_readinitb(&rio, fd);
-    printf("\n Request headers: \n");
 
-    Rio_readlineb(&rio, buf, MAXLINE); // MAXLINE 까지 읽기
-    Rio_writen(fd, buf, strlen(buf));
-    while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
+    Rio_readinitb(&rio, connfd);
+    while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0)
     {
-        Rio_readlineb(&rio, buf, MAXLINE);
-        Rio_writen(fd, buf, strlen(buf));
+        if (strcmp(buf, "\r\n") == 0)
+            break;
+        Rio_writen(connfd, buf, n);
     }
 }
 
@@ -87,11 +87,14 @@ void doit(int fd)
 
     char filename[MAXLINE], cgiargs[MAXLINE];
     rio_t rio;
+    rio_t erio;
 
     // 요청 라인 읽고 분석하기...
     /* Read request line and headers */
     Rio_readinitb(&rio, fd);           //rio 구조체 초기화..
     Rio_readlineb(&rio, buf, MAXLINE); //buf에 읽은 것 담겨있음.
+                                       //buf에 읽은 것 담겨있음.
+
     printf("\n Request headers: \n");
     printf("%s", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
@@ -261,6 +264,10 @@ void get_filetype(char *filename, char *filetype)
         strcpy(filetype, "image/png");
     else if (strstr(filename, ".jpg"))
         strcpy(filetype, "image/jpeg");
+    else if (strstr(filename, ".mp4"))
+        strcpy(filetype, "video/mp4");
+    else if (strstr(filename, ".mpeg"))
+        strcpy(filetype, "video/mpeg");
     else
         strcpy(filetype, "text/plain");
 }

@@ -789,6 +789,7 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
     ssize_t nwritten;
     char *bufp = usrbuf;
 
+    printf("filesize: %d\n", n);
     while (nleft > 0)
     {
         if ((nwritten = write(fd, bufp, nleft)) <= 0)
@@ -796,11 +797,19 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
             if (errno == EINTR) /* Interrupted by sig handler return */
                 nwritten = 0;   /* and call write() again */
             else
+            {
+                printf("end2\n");
                 return -1; /* errno set by write() */
+            }
         }
+
         nleft -= nwritten;
+        if (nleft)
+            sleep(50);
+        printf("leftsize: %d\n", nleft);
         bufp += nwritten;
     }
+    printf("end1\n");
     return n;
 }
 /* $end rio_writen */
@@ -922,14 +931,14 @@ ssize_t Rio_readn(int fd, void *ptr, size_t nbytes)
     ssize_t n;
 
     if ((n = rio_readn(fd, ptr, nbytes)) < 0)
-        unix_error("Rio_readn error");
+        unix_error("Rio_readn error\n");
     return n;
 }
 
 void Rio_writen(int fd, void *usrbuf, size_t n)
 {
     if (rio_writen(fd, usrbuf, n) != n)
-        unix_error("Rio_writen error");
+        unix_error("Rio_writen error\n");
 }
 
 void Rio_readinitb(rio_t *rp, int fd)
@@ -942,7 +951,7 @@ ssize_t Rio_readnb(rio_t *rp, void *usrbuf, size_t n)
     ssize_t rc;
 
     if ((rc = rio_readnb(rp, usrbuf, n)) < 0)
-        unix_error("Rio_readnb error");
+        unix_error("Rio_readnb error\n");
     return rc;
 }
 
@@ -951,7 +960,7 @@ ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     ssize_t rc;
 
     if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0)
-        unix_error("Rio_readlineb error");
+        unix_error("Rio_readlineb error\n");
     return rc;
 }
 
