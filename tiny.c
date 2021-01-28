@@ -12,7 +12,7 @@ void read_requesthdrs(rio_t *rp, int fd); // rio_t는 csapp.h에 정의되어있
 int parse_uri(char *uri, char *filename, char *cgiargs);
 
 // serve_static은 무엇을 하는 함수일까요? 정적인 파일일때 파일을 클라이언트로 응답
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, char *method);
 
 // get_filetype은 무엇을 하는 함수일까요? http,text,jpg,png,gif파일을 찾아서 serve_static에서 사용
 void get_filetype(char *filename, char *filetype);
@@ -21,6 +21,8 @@ void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+
+void write_requesthdrs(rio_t *rp, int fd);
 
 void echo(int fd);
 
@@ -57,7 +59,6 @@ int main(int argc, char **argv)
 
         // 트랜잭션 수행
         doit(connfd);
-        //echo(connfd);
         // 연결 끝 닫기
         printf("endoffile\n");
         Close(connfd);
@@ -88,7 +89,6 @@ void doit(int fd)
     char filename[MAXLINE], cgiargs[MAXLINE];
     rio_t rio;
     rio_t erio;
-
     // 요청 라인 읽고 분석하기...
     /* Read request line and headers */
     Rio_readinitb(&rio, fd);           //rio 구조체 초기화..
@@ -100,18 +100,18 @@ void doit(int fd)
     sscanf(buf, "%s %s %s", method, uri, version);
 
     // 메소드가 get이 아니면 에러 띄우고 끝내기
-    if (strcasecmp(method, "GET"))
+    if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD"))
     {
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
     // get인 경우 다른 요청 헤더 무시.
 
-    read_requesthdrs(&rio, fd);
-
     // URI 분석하기
     // 파일이 없는 경우 에러 띄우기
     /* Parse URI from GET request */
+
+    read_requesthdrs(&rio, fd);
     is_static = parse_uri(uri, filename, cgiargs);
     if (stat(filename, &sbuf) < 0)
     {
@@ -129,7 +129,7 @@ void doit(int fd)
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
         }
         // 그렇다면 클라이언트에게 파일 제공
-        serve_static(fd, filename, sbuf.st_size);
+        serve_static(fd, filename, sbuf.st_size, method);
     }
     else
     {
@@ -173,15 +173,36 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 // 요청헤더 읽기
 void read_requesthdrs(rio_t *rp, int fd)
 {
+    char result[MAXLINE];
     char buf[MAXLINE];
 
     Rio_readlineb(rp, buf, MAXLINE); // MAXLINE 까지 읽기
     printf("%s", buf);
+
     while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
     {
         Rio_readlineb(rp, buf, MAXLINE);
         printf("%s", buf);
     }
+    return;
+}
+
+void write_requesthdrs(rio_t *rp, int fd)
+{
+    char result[MAXLINE];
+    char buf[MAXLINE];
+
+    Rio_readlineb(rp, buf, MAXLINE); // MAXLINE 까지 읽기
+    sprintf(buf, "%s", buf);
+
+    while (strcmp(buf, "\r\n")) // 끝줄 나올때까지 계속 읽기
+    {
+        Rio_readlineb(rp, buf, MAXLINE);
+        printf("%s", buf);
+        sprintf(buf, "%s", buf);
+    }
+
+    Rio_writen(fd, buf, strlen(buf));
     return;
 }
 
@@ -200,7 +221,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
     }
     else /* Dynamic content */
     {
-        ptr = index(uri, '?');
+        ptr = index(uri, '?'); // /cgi-bin/adder?a=1&b=1
         //CGI 인자 추출
         if (ptr)
         {
@@ -213,17 +234,20 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
             strcpy(cgiargs, ""); // 물음표 뒤 녀석들 전부 넣어주기
 
         // 나머지 부분 상대 URI로 바꿈, 나중에 이 서버의 uri가 뭔지 확실히 알아보자
-        strcpy(filename, ".");
+        strcpy(filename, "."); // ./cgi-bin/adder
         strcat(filename, uri); // ./uri 가 된다.
         return 0;
     }
 }
 
 // fd 응답받는 소켓(연결식별자), 파일 이름, 파일 사이즈
-void serve_static(int fd, char *filename, int filesize)
+void serve_static(int fd, char *filename, int filesize, char *method)
 {
+    rio_t file_rio;
+    int n;
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXBUF];
+    char *file;
     /* Send response headers to client */
     // 파일 접미어 검사해서 파일 이름에서 타입 가지고 오기
     get_filetype(filename, filetype);
@@ -240,17 +264,27 @@ void serve_static(int fd, char *filename, int filesize)
     // 서버에 출력
     printf("%s", buf);
 
-    // 읽을 수 있는 파일로 열기
-    srcfd = Open(filename, O_RDONLY, 0);
-    //PROT_READ -> 페이지는 읽을 수만 있다.
-    // 파일을 어떤 메모리 공간에 대응시키고 첫주소를 리턴
-    srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Close(srcfd);
-    Rio_writen(fd, srcp, filesize);
-    //대응시킨 녀석을 풀어준다. 유효하지 않은 메모리로 만듦
-    // void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset);
-    // int munmap(void *start, size_t length);
-    Munmap(srcp, filesize);
+    if (!strcmp(method, "GET"))
+    {
+        // 읽을 수 있는 파일로 열기
+        srcfd = Open(filename, O_RDONLY, 0);
+        //PROT_READ -> 페이지는 읽을 수만 있다.
+        // 파일을 어떤 메모리 공간에 대응시키고 첫주소를 리턴
+        // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+
+        file = (char *)malloc(filesize);
+
+        Rio_readinitb(&file_rio, srcfd);
+        Rio_readnb(&file_rio, file, filesize);
+        Rio_writen(fd, file, filesize);
+
+        Close(srcfd);
+        free(file);
+        //대응시킨 녀석을 풀어준다. 유효하지 않은 메모리로 만듦
+        // void *mmap(void *start, size_t length, int prot, int flags, int fd, off_t offset);
+        // int munmap(void *start, size_t length);
+        // Munmap(srcp, filesize);
+    }
 }
 
 /* get_filetype - Derive file type from filename */
@@ -284,7 +318,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
     /* Real server would set all CGI vars here */
     {
         // 1이면 원래 있던거 지우고 다시 넣기
-        setenv("QUERY_STRING", cgiargs, 1);
+        setenv("QUERY_STRING", cgiargs, 1); // a=1&b=1
         // 파일 복사하기
         // 표준 출력이 fd에 저장되게 만드는 듯
         // 원래는 STDOUT_FILENO -> 1 임. 표준 파일 식별자.

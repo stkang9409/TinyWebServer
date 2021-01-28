@@ -2,13 +2,20 @@
 
 <head>
     <title>test</title>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width-device-width, initial-scale=1">
 </head>
 
 <body>
     <img align="middle" src="godzilla.gif">
     Dave O'Hallaron
-    <video src="happy.mp4" type="video/mp4" controls>
+    <video src="happy.mp4" type="video/mp4" controls autoplay></video>
 
+    <form action="/cgi-bin/adder" method="GET">
+        <input type="text" name="a" placeholder="정수 입력" value="0">
+        <input type="text" name="b" placeholder="정수 입력" value="0">
+        <input type="submit">
+    </form>
 </body>
 
 </html>
